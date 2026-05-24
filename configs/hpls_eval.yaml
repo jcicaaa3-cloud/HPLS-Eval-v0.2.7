@@ -1,0 +1,106 @@
+project:
+  name: HPLS-Eval
+  description: Evidence-first runtime and low-precision evaluation for small irregular segmentation
+  version: 0.2.7
+  domain_context: road_damage_pilot
+  claim_scope: medical_extension_planned
+  clinical_claim_allowed: false
+  notes: >
+    Road-damage segmentation is retained as a motivating pilot domain and prior evidence.
+    Follow-up research is narrowed toward medical-lesion-oriented evaluation, without
+    diagnostic or clinical deployment claims.
+
+paths:
+  # Relative paths are resolved from this config file's directory.
+  dataset_manifest: ../templates/dataset_manifest.csv
+  prediction_root: ../predictions
+  prediction_pattern: "{prediction_root}/{model_id}/{runtime_id}/{precision}/{sample_id}.png"
+  compatibility_log: ../templates/compatibility.csv
+
+baseline:
+  runtime_id: onnxruntime_cpu
+  precision: FP32
+  reference_policy: same_model_fixed_runtime_precision
+
+models:
+  - model_id: replace_with_model_id
+    display_name: Replace with actual lightweight segmentation model
+    notes: "Use road-damage as pilot evidence or medical data as a future target only after domain-specific validation."
+
+runtime_paths:
+  - runtime_id: onnxruntime_cpu
+    processor_class: CPU
+    runtime_name: ONNX Runtime CPU
+  - runtime_id: tensorrt_gpu
+    processor_class: GPU
+    runtime_name: TensorRT or ORT TensorRT EP
+  - runtime_id: openvino_npu
+    processor_class: NPU
+    runtime_name: OpenVINO NPU or compatible NPU path
+  - runtime_id: xla_tpu
+    processor_class: TPU
+    runtime_name: XLA / PyTorch-XLA compatible TPU path
+
+precisions: [FP32, FP16, INT8]
+
+mask:
+  positive_threshold: 127
+  binarize_predictions: true
+  # If predictions are probability masks, set threshold appropriately, e.g. 127 for 8-bit maps or 0.5 for arrays.
+
+metrics:
+  eps: 1.0e-8
+  # Boundary metrics exclude samples with empty GT boundary from boundary means.
+  # The evaluator still reports empty_gt_boundary_count and boundary_fp_empty_gt_count.
+  main_performance_metric: dice
+  boundary:
+    radius: 2
+    metric: boundary_recall
+  small_region:
+    area_threshold_px: 512
+    connectivity: 8
+    aggregation: pixel_micro  # pixel_micro or component_macro
+  # Alias policy:
+  # small_region_* is the primary generic terminology for road-damage and visual-anomaly experiments.
+  # small_lesion_* is retained as a medical-domain alias for future lesion-segmentation experiments.
+  # These aliases must not be interpreted as evidence of clinical validity.
+
+pcs_weights:
+  conversion_success: 0.25
+  operator_support: 0.20
+  fallback_avoidance: 0.20
+  build_success: 0.20
+  precision_support: 0.15
+
+hpls_weights:
+  performance_retention: 0.25
+  boundary_retention: 0.25
+  small_region_retention: 0.20
+  runtime_retention: 0.15
+  precision_compatibility: 0.15
+
+runtime_audit:
+  # Provider profile evidence is not mandatory for early planning runs, but
+  # accelerated runtime claims without it are reported as log-only evidence.
+  require_provider_profile_for_accelerators: false
+  requested_provider_fraction_warning_threshold: 0.95
+  # If true, `validate --strict` becomes a hard gate for TensorRT/CUDA/OpenVINO/NPU/TPU rows without profile evidence.
+  require_p99_latency: true
+
+int8_audit:
+  strict_conv_threshold: 0.80
+  max_fp32_conv_fraction: 0.20
+  require_for_int8: false
+  affect_pcs: true
+
+reporting:
+  fail_on_missing_prediction: false
+  fail_on_missing_baseline: true
+  write_markdown_report: true
+  include_per_sample_table_in_report: false
+  # CSV keeps small_lesion_* aliases for future medical-extension continuity.
+  # Markdown reports hide them by default so road-damage pilot reports stay generic.
+  show_medical_alias_columns: false
+  # Presentation reports group related runtime/fallback/device warnings by condition.
+  # Raw validation_warnings.log still keeps the full deduplicated warnings.
+  group_related_warnings: true

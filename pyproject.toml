@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hpls-eval"
+version = "0.2.7"
+description = "Evidence-first low-precision and multi-runtime evaluation for small irregular segmentation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "HPLS-Eval Research Prototype"}]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "Pillow>=10.0",
+  "PyYAML>=6.0",
+  "tqdm>=4.66",
+  "tabulate>=0.9"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+onnx = ["onnx>=1.16"]
+ort = ["onnxruntime>=1.17"]
+
+[project.scripts]
+hpls-eval = "hpls_eval.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

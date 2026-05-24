@@ -1,0 +1,2 @@
+sample_id,gt_mask,split
+# case_0001,/absolute/or/relative/path/to/ground_truth_mask.png,test

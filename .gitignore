@@ -1,0 +1,43 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local outputs
+results/
+predictions/
+ground_truth/
+datasets/
+data/
+exports/
+compatibility/profiles/
+compatibility/audits/
+
+# Secrets and local credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jsonl
+
+# Large model / checkpoint artifacts
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+*.onnx
+*.engine
+*.trt
+*.tflite
+*.npz
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
