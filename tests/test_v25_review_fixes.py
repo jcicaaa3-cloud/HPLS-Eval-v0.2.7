@@ -112,11 +112,3 @@ def test_report_includes_domain_context_distribution_for_mixed_rows(tmp_path):
     assert "medical_lesion_target" in text
     assert "generic_visual_anomaly" in text
     assert "project-level domain_context" in text
-
-
-def test_readme_states_domain_bridge_once_without_repeating_position_section():
-    text = Path("README.md").read_text(encoding="utf-8")
-    assert "## Research position" not in text
-    assert text.count("Road-damage pilot evidence") == 1
-    assert "Road-damage pilot evidence → medical-lesion-oriented follow-up" in text
-    assert "not because road-damage performance transfers to medicine" in text

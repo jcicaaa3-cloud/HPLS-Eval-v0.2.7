@@ -79,11 +79,7 @@ def test_report_uses_split_provider_fallback_device_tables(tmp_path):
 
 
 def test_relative_evidence_path_rule_is_documented():
-    readme = Path("README.md").read_text(encoding="utf-8")
     guide = Path("docs/runtime_logging_guide.md").read_text(encoding="utf-8")
     contract = Path("docs/data_contract.md").read_text(encoding="utf-8")
-    phrase = "Relative evidence paths in compatibility.csv are resolved relative to the directory containing compatibility.csv, not the project root."
-    assert phrase in readme
-    assert "compatibility.csv 안의 상대 경로는 프로젝트 루트가 아니라 compatibility.csv가 위치한 폴더를 기준으로 해석된다" in readme
     assert "Relative evidence paths in `compatibility.csv` are resolved relative to the directory containing `compatibility.csv`, not the project root." in guide
     assert "resolved relative to the directory containing `compatibility.csv`, not the project root" in contract

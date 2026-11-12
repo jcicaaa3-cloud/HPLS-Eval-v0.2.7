@@ -1,75 +1,28 @@
-# HPLS-Eval v0.2.7
+# HPLS-Eval
 
-**Road-damage pilot evidence → medical-lesion-oriented follow-up**
+[日本語](README_JA.md) · [한국어](README_KO.md)
 
-Evidence-first evaluation for small, irregular segmentation masks across CPU, GPU, NPU, and TPU-style runtime paths.
+An evaluation harness for segmentation models whose masks are small and irregular. It measures how the same model's results change when the runtime (CPU, GPU, NPU, TPU) and the numeric precision (FP32, FP16, INT8) change.
 
-HPLS-Eval is an evaluation harness, not a model repository. It is designed to compare how a lightweight segmentation model behaves when the runtime and numeric precision change. The intended matrix is simple:
+This is not a model, and the repository contains no experiment results. You supply ground-truth masks, prediction files for each runtime and precision, and a log of how each run went. The tool computes the metrics and writes the tables and a report.
 
-```text
-same task / same model family
-        × CPU, GPU, NPU, TPU runtime paths
-        × FP32, FP16, INT8 precision modes
-        × accuracy, boundary quality, small-region retention, latency, fallback evidence
-```
+I started it while working on [LiteRaceSegNet](https://github.com/jcicaaa3-cloud/LiteRaceSegNet-FINAL-), a road-damage segmentation model. That work ran into thin boundaries, sparse masks, small objects, threshold sensitivity, and backend fallback. This tool measures them separately.
 
-The road-damage experiment is treated as pilot evidence because it exposed practical issues around thin boundaries, sparse masks, small objects, threshold sensitivity, and backend fallback. Medical lesion segmentation is a planned follow-up evaluation target, not because road-damage performance transfers to medicine, but because the same evaluation risks can reappear around small irregular masks. This repository does not claim medical validity, diagnostic performance, or deployment safety.
+Version 0.2.7.
 
-## What this repository does
+## What it checks
 
-- Computes segmentation metrics for small and irregular masks.
-- Separates FP32 baseline performance from FP16/INT8 retention.
-- Tracks latency with p90, p95, p99, min, and max fields.
-- Records whether an accelerated backend was actually used or silently fell back.
-- Integrates INT8 graph-audit evidence instead of trusting a filename or conversion label.
-- Produces CSV matrices and a reviewer-readable Markdown report.
-
-## What it does not do
-
-- It does not include patient data.
-- It does not provide clinical validation.
-- It does not create synthetic results to fill missing experiments.
-- It does not assume that road-damage performance transfers to medical data.
-- It does not treat a requested provider as proof of actual execution.
-
-## Evaluation scope
-
-| Axis | Meaning |
-|---|---|
-| Model | A lightweight segmentation model supplied by the user |
-| Runtime path | CPU, GPU, NPU, or TPU-style execution path |
-| Precision | FP32, FP16, INT8 |
-| Baseline | Configured FP32 CPU row by default |
-| Outputs | Metrics, latency summaries, runtime evidence, INT8 audit fields, report tables |
-| Claim policy | Non-clinical; missing evidence remains missing evidence |
-
-Default runtime IDs are defined in `configs/hpls_eval.yaml`:
-
-```yaml
-runtime_paths:
-  - onnxruntime_cpu
-  - tensorrt_gpu
-  - openvino_npu
-  - xla_tpu
-
-precisions: [FP32, FP16, INT8]
-```
-
-## Metrics and evidence
-
-HPLS-Eval reports conventional segmentation metrics and deployment-oriented evidence in the same run.
-
-| Group | Examples |
-|---|---|
+| Group | Contents |
+| --- | --- |
 | Segmentation | Dice, IoU |
-| Boundary | Boundary recall, boundary IoU, empty-GT boundary counts |
-| Small region | Small-region recall and retention aliases |
-| Runtime | p90/p95/p99 latency, run status, conversion/build status |
-| Provider audit | Requested provider, actual provider fractions, node counts, fallback counts |
-| INT8 audit | QLinearConv / ConvInteger / QDQ-wrapped Conv counts, strict INT8 graph pass |
-| Summary | Performance retention, BRS, SRS, RTG, PCS, HPLS score |
+| Boundary | Boundary recall and boundary IoU. Samples with an empty ground-truth boundary are left out of the mean but still counted. |
+| Small regions | Recall on small regions |
+| Retention | FP16 and INT8 results relative to the FP32 baseline (FP32 on CPU by default) |
+| Latency | p50, p90, p95, p99, min, max |
+| Provider audit | Which execution provider actually ran the nodes, compared with the one requested (from an ONNX Runtime profile) |
+| INT8 audit | Counts quantized convolution nodes in the ONNX graph, so a file named `int8` is not taken at its word |
 
-Boundary means exclude samples with empty GT boundaries. The excluded cases are still counted so that the report does not hide empty-mask behavior.
+Summary scores (BRS, SRS, RTG, PCS, HPLS score) are defined in [docs/protocol.md](docs/protocol.md). Latency is never estimated: if it was not measured, the fields stay empty.
 
 ## Install
 
@@ -77,86 +30,26 @@ Boundary means exclude samples with empty GT boundaries. The excluded cases are 
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e .
-```
 
-Optional extras:
-
-```bash
 pip install -e '.[onnx]'       # ONNX graph audit
-pip install -e '.[ort]'        # ONNX Runtime profile support
-pip install -e '.[dev]'        # tests and lint tools
+pip install -e '.[ort]'        # ONNX Runtime profiling
+pip install -e '.[dev]'        # tests
 ```
 
-## Quick start
-
-Create a project scaffold:
+## Usage
 
 ```bash
-hpls-eval scaffold --out ./my_hpls_project
-```
-
-Validate the configured inputs:
-
-```bash
-hpls-eval validate --config configs/hpls_eval.yaml
-```
-
-Run evaluation:
-
-```bash
+hpls-eval scaffold --out ./my_project                      # empty templates
+hpls-eval validate --config configs/hpls_eval.yaml         # check inputs
 hpls-eval evaluate --config configs/hpls_eval.yaml --out results/run_001
-```
-
-Run tests:
-
-```bash
 python -m pytest -q
 ```
 
-## Input contract
-
-The evaluator expects three categories of input.
-
-| Input | Purpose |
-|---|---|
-| Dataset manifest | Connects sample IDs to ground-truth masks and domain context |
-| Prediction files | Model outputs by `model_id/runtime_id/precision/sample_id` |
-| Compatibility log | Runtime, precision, latency, provider, fallback, and audit evidence |
-
-Recommended compatibility columns:
-
-```csv
-model_id,runtime_id,precision,domain_context,claim_scope,clinical_claim_allowed,run_status,conversion_success,operator_support,fallback_ratio,build_success,precision_support,int8_audit_path,latency_ms,latency_ms_p50,latency_ms_p90,latency_ms_p95,latency_ms_p99,latency_ms_min,latency_ms_max,compile_ms,unsupported_ops,requested_provider,provider_profile_path,requested_device,available_devices,actual_compiled_device,performance_hint,xla_profile_path,backend_profile_path,backend_evidence_notes,notes
-```
-
-Important distinction:
-
-```text
-requested_provider     = TensorRTExecutionProvider / CUDAExecutionProvider / OpenVINOExecutionProvider / CPUExecutionProvider
-actual_compiled_device = CPU / GPU / CUDA-GPU / NPU / TPU
-```
-
-`actual_compiled_device` is a device label, not an execution-provider name.
-
-Relative evidence paths in compatibility.csv are resolved relative to the directory containing compatibility.csv, not the project root.
-
-compatibility.csv 안의 상대 경로는 프로젝트 루트가 아니라 compatibility.csv가 위치한 폴더를 기준으로 해석된다.
-
-```text
-compatibility/compatibility.csv + provider_profile_path=profiles/trt_profile.json
-=> compatibility/profiles/trt_profile.json
-```
-
-Do not write `compatibility/profiles/trt_profile.json` inside a file that already lives in `compatibility/`, unless that duplicated path is intentional.
-
-## Provider execution audit
-
-A requested accelerator is not enough to support an accelerator claim. Attach provider-profile evidence when possible.
+Audits:
 
 ```bash
 python scripts/ort_profile_runner.py \
-  --model exports/model.onnx \
-  --input-npz sample_input.npz \
+  --model exports/model.onnx --input-npz sample_input.npz \
   --providers TensorRTExecutionProvider,CUDAExecutionProvider,CPUExecutionProvider \
   --out-json compatibility/profiles/model_trt_fp16_measurement.json
 
@@ -164,25 +57,24 @@ hpls-eval audit-profile \
   --profile compatibility/profiles/model_trt_fp16_profile.json \
   --requested-provider TensorRTExecutionProvider \
   --out results/audits/model_trt_fp16_provider_audit.json
-```
 
-For TPU/XLA rows, ONNX Runtime provider fields are not enough. Use backend-specific evidence such as XLA or XProf traces and record the path in the compatibility log.
-
-## INT8 graph audit
-
-INT8 should be supported by graph evidence, not by the model filename.
-
-```bash
 hpls-eval audit-onnx \
   --model exports/model_int8.onnx \
-  --strict-conv-threshold 0.80 \
-  --max-fp32-conv-fraction 0.20 \
+  --strict-conv-threshold 0.80 --max-fp32-conv-fraction 0.20 \
   --out compatibility/audits/model_int8_audit.json
 ```
 
-The audit output is merged into `condition_summary.csv` and `runtime_evidence_matrix.csv`.
+## Inputs
 
-## Main outputs
+| Input | Purpose |
+| --- | --- |
+| Dataset manifest | Maps sample IDs to ground-truth masks |
+| Prediction files | Model outputs under `model_id/runtime_id/precision/sample_id` |
+| Compatibility log (`compatibility.csv`) | Run status, latency, requested provider, fallback, and paths to audit files |
+
+Column details are in [docs/data_contract.md](docs/data_contract.md). Relative paths inside `compatibility.csv` are resolved from the folder that contains `compatibility.csv`, not from the project root.
+
+## Outputs
 
 ```text
 results/run_001/
@@ -198,26 +90,19 @@ results/run_001/
   report.md
 ```
 
-`report.md` is intended for review, presentation, and document conversion. Raw CSV files keep wider schemas, including compatibility aliases that may be useful for future medical-domain experiments. Avoid raw CSV screenshots in advisor slides unless the alias policy or full schema is the topic.
+## Scope
 
-## v0.2.7 changes
+This is a non-clinical research prototype. Medical lesion segmentation appears in the docs as a possible later target because it has the same kind of small, irregular masks. There is no patient data here, no clinical validation, and road-damage results say nothing about medical performance. The default config keeps `clinical_claim_allowed: false`.
 
-- Warning summaries now use stable warning codes instead of weak prose fragments.
-- Related runtime, fallback, device, and INT8 warnings can be grouped by condition.
-- Provider placement, fallback, and device evidence are separated into narrower report tables.
-- Relative evidence-path resolution is documented explicitly.
-- Existing runtime, INT8, boundary, and claim-boundary gates remain unchanged.
+## Docs
 
-## Claim boundary
+- [protocol.md](docs/protocol.md): metrics and scores
+- [data_contract.md](docs/data_contract.md): input formats
+- [runtime_logging_guide.md](docs/runtime_logging_guide.md): how to record runtime results
+- [provider_execution_audit.md](docs/provider_execution_audit.md), [int8_graph_audit.md](docs/int8_graph_audit.md): the two audits
+- [claim_boundary.md](docs/claim_boundary.md), [domain_bridge_road_to_medical.md](docs/domain_bridge_road_to_medical.md): scope
+- [security_notes.md](docs/security_notes.md): loading checkpoints safely
 
-This repository is a non-clinical research prototype. Medical-lesion terminology marks a future evaluation target only. Medical-domain conclusions require medical data, a domain-specific protocol, reviewer oversight, and separate validation.
+## License
 
-The default configuration keeps:
-
-```yaml
-clinical_claim_allowed: false
-reporting:
-  show_medical_alias_columns: false
-```
-
-Road-damage pilot results may motivate the evaluation design. They must not be presented as evidence of medical performance.
+MIT
