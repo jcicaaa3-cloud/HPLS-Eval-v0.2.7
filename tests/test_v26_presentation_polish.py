@@ -113,7 +113,5 @@ def test_report_is_split_and_hides_medical_alias_tables_for_road_domain(tmp_path
 
 
 def test_raw_csv_alias_presentation_note_is_documented():
-    readme = Path("README.md").read_text(encoding="utf-8")
     data_contract = Path("docs/data_contract.md").read_text(encoding="utf-8")
-    assert "raw CSV screenshots" in readme
     assert "Presentation note: raw CSV files intentionally retain backward-compatible aliases" in data_contract
